@@ -1,0 +1,373 @@
+// The markup language of this document is AsciiDoc
+:encoding: UTF-8
+
+= The EF Programming Language
+Florian Kaufmann <sensorflo@gmail.com>
+April 2014
+
+This document is not much more than brainstorming.
+
+== Guidelines in desiging EF
+* Consistent, one keyword one responsibility
+ ** Avoid the case that one keyword has multiple meanings, especially regarding storage, lifetime, scope, linkage.
+ ** Context insensitive, always the same meaning in any context
+ ** Choose linkage, lifetime, storage, scope, alignment etc with dedicated keywords.
+* Prefer memontic (even when only one letter) letters/words over punctuation.
+* Easy grammar. Most of all easy for humans to understand details
+  ('complicated' grammars might often be intuitive for humans in most cases
+  but not in a few corner cases or where the author of code ``abused' the
+  rules). That also makes it easier to write tools/IDEs.
+* No redundancy. I don't want to be forced to write things twice. Work with
+  identifiers to refer to already said things.
+* As in C++, don't pay what you don't need, maybe at the cost of safety. That
+  is the default patterns are safe, but there are still almost as direct
+  ways/patterns to have full controll as in C.
+* Trade safety (likeliness to write correct programs) for compile time. The
+  machine has to think, not the human programmer. Compile time (almost) only
+  helps the programmer, but the programmer benefits probably more if he spends
+  less time searching bugs / compile/linker problems.
+ ** No context sensitive operators/keywords.
+* Trade faster runtime for longer compiletime. The program is more often run
+  than compiled. Even while develeoping - why compiling a translation unit if
+  you don't let the code in it run? (Ok due to a changed import it might has
+  to get recompiled).
+
+== Types
+
+----------------------------------------------------------------------
+typeexpr = [cvqualifier] (fundamentaltype | compoundtype);
+
+fundamentaltype =
+  ## arithemitic types
+    ## integral types
+    ['u|'s].(
+      'efbyte#*not neccessairly 8bit*#|'short|'int|'long|'longlong|
+      'int.('8|'16|'32|'64|'128|'258)|
+      'bigint) |
+    ## floating point types
+    'float | 'double | 'longdouble |
+    ## character types. value is code point
+    'char | 'wchar | 'char_utf8 | 'char_utf16 | 'char_utf32 
+  'bool |
+  'tnull | ## type of null pointer literal 
+  'void |
+  'noret |
+  'auto|## !!!! probably technically not really a type.
+  'typeof\( expr \);## instead C++'s declspec 
+
+compoundtype =
+  (\&|'refto) typeexpr | ## reference type, lvalue ref
+  (`&&|'moverefto) typeexpr | ## " , rvalue ref
+  ['[sub]](\*|'ptrto)#onesequence typeexpr | ## pointer type. u=std::unique_ptr (default), s=std::shared_ptr, b=builtin, 
+  (\*|'ptrto) typeexpr 'in classtypeexpr | ## pointer (builtin) to member type
+  ['[ab]]\(\[#onesequence constexpr#n\]|'arrayof constexpr#n) typeexpr | ## array type. a=std::array (default), b=builtin
+  ## !!!!todo/ensure!!!! all the following after the same pattern as above
+  enumdec | ## enum
+  funcdec | ## function
+  classdec | ## class
+  uniondec | ## union
+  \( typeexpr \) | ## to change precedence of operators in type expr  
+
+## decl or def?????. Thanks to that following code can make ptrs/refs to that type.
+typed =
+  'type identifier; ## incomplete type. !!! exclusive what ptr to member would point to
+
+
+
+cvqualifier = 'const |: 'volatile;
+----------------------------------------------------------------------
+
+Notes:
+
+* For simplicity a typename is always a single identifier, e.g. no ``unsigned long long''.
+
+== Convertions
+Much less implicit convertions than C++. 
+
+== Functions
+----------------------------------------------------------------------
+## 4 (or 5?) ary
+funcdec =
+  'func identifier | ## incomplete func type (type name or impl name????)
+  'func identifier#implname
+  [\( paramdeclexpr \,{?} \)] ## defaults to nullary
+  [`-> typeexpr] ## defaults to void
+  ['throws (typeexpr \,{?})] 
+  [['is] funcqualifiers];
+func_def_or_dec =
+  ( funcdec | 'func identifier#functypename )
+  \{ exprlist \}; ## implementation
+
+## as vardecl but not allowed are:  initializer
+paramdeclexpr = typeexpr 'var identifier
+----------------------------------------------------------------------
+
+- Allow local functions, i.e. scoped to a block.
+- Allow that definition only uses name already introduced by declaration, so we don't have to redundantely state signature again. That fails for overloads, but see func name aliases.
+- Allow to add aliases to functions. Both to other name, ignoring signature, and to the complete thing (name+signature).
+
+== Comments / Documentation / EFDoc
+- Institutionaliese using Doxygen or doxygen like markup language.
+- See EDoc why it makes sense to integrate the doc language into the compiler.
+- Inherited classes, overloaded methods, overwritten methods,
+  member-getter-setter, delegate methods: Find a way that only a minimalistic
+  comment (one keyword) or none at all has to be written and still have 1)
+  good doc output 2) even in code the maintainer sees quickly that the
+  identifier is not documented here but at another place.
+
+== Ability to talk to C API
+
+== Modules or header-source
+- Do it as in D, have modules
+
+== Name aliases
+- For methods, see there
+- For classes: typically a source file would define alias 'me' to respective
+  class, so method definitions could be as short as "func me::foo {...}"
+
+== Object
+----------------------------------------------------------------------
+## ternary op. Binds 1) <name> to newly created data of 2) given type
+## <typeexpr> with automatic storage duration and initializes it with 3)
+## initializer. Returns lvalue reference to new variable. 
+##
+## The variable is deallocated at the end of the enclosing block.
+## 
+## When beginning with name its confusing beceause the first thing we (humans
+## and compilers) see is an identifier we don't know yet. result is the value
+## of the new variable how do i know what is part of type expr and what is
+## part of name.
+local_var_def =
+  %v1
+  'var [identifier|'noname] [('as|'is|\:) typeexpr]#defaults_to_auto initializer;
+  %v2 ## does not match with pattern that declarator keyword (var,func,class) comes first
+  typeexpr 'var identifier initializer;
+initializer =
+  \( expr \,{?} \) | ## 'constructor call'
+  'noinit| ## leave var uninitialized. Note that followingly user has to be explicit when he really wants an uninitialized variable
+  #*nothing*#; ## "int var a" equals "int var a()"
+
+## operator precedence
+## var (),       ternary
+## var =         ternary
+## var noninit   ternary
+## if            n-ary
+----------------------------------------------------------------------
+
+== Class
+----------------------------------------------------------------------
+classdecl =
+  'class identifier#classtypename | ##incomplete class type
+  'class identifier#classtypename \: (accessspecifier classtypeexpr\,{?}) \{ classimpl \};
+----------------------------------------------------------------------
+
+
+=== Constructor
+The name is this or ctor or constructor. So the name/identifier it's not redundant as in C++
+
+=== Destructor
+The name is ~this or dtor or destructor. See also ctor
+
+=== Initval
+What is D's init? Why not just use default ctor
+
+=== Methods
+- Virtual is default
+- Keyword for overwritte, so we have to be explicit in our intend to avoid the
+  case to accidentaly introduce a new method. Or the other way round, a
+  keyword for introducing a new method.
+- Keyword for nonvirtual (since virtual is the default)
+- No final keyword to prevent overwriting methods or deriving classes. Only?
+  usable in security related areas, and those should achieve their goals by
+  other means. final is bad for unit testing. It's bad from the point of view
+  that the author of class A shall not dictate other's how to use it.
+
+=== Members / Properties
+- See D. However EF lets you default implement properties.
+- In the declaration of a member, one can state whether and what
+  getters/setters are (auto) generated [mind the different access]. The
+  implementation is automatic or user given.
+
+
+== Controll flow
+
+Again, all this is about expressions and operands.
+----------------------------------------------------------------------
+## conditionals
+
+## n-ary operand.
+if =
+  %v1
+  'if \( expr\) expr ('elif \(expr\) expr)* ['else expr];
+  %v2
+  'if expr 'then expr ('elif expr 'then expr)* ['else expr];
+
+## todo: give user ability to choose predicate. per default it is
+## [&switchexpr]match(x)->bool { return switchexpr==x }
+switch =
+  %v1
+  'switch expr ('is expr\: expr)* 'end;  
+  %v2
+  'switch expr \{ ('case expr\: expr)* \};
+
+## loops 
+loop =
+  'foreach (expr 'in expr 'cross{?} )+ 'do expr |
+  ##['begin expr] 'while expr 'inc expr 'do expr | what does ruby, python, scala, ... do?
+  ('while|'until) expr 'do expr |
+  ['do] expr ('while|'until) expr;
+  ## ????? what was my problem that i wanted a condition at the start AND the end???
+## alternatively: 
+## integralexpr.times closureexpr
+
+## jumps. The result type of controll flow jump operands is typically
+## ----noret----.
+jump_nullary = 'continue | 'break | 'redo;## todo: as in perl, jump to specific loops. Also relative numbers to identify nested enclosing loop
+jump_unary =
+  'return expr | ## early return; is optional at the end of a function/lambda block. 
+  ('goto | 'continueto | 'redo) label |
+  'breakwith expr; ## defines the enclosing/refered loop expression's value
+----------------------------------------------------------------------
+
+== Operators
+----------------------------------------------------------------------
+
+op_bool = 'or | 'and | 'xor | 'nand | 'not; ## no && etc --> they are free for other purposes
+op_bit = 'bor | 'band | 'bxor | 'bnand | 'bnot |  ## no ^ etc --> dito
+  'ror | 'rol | 'shr | 'shl | 'sar | 'sal;
+op_arithmeic =
+  'root2 | 'log2 | 'loge | 'log10 | ##unary
+  `+ | `- | ## unary and binary
+  `* | `/ | 'pow | 'root | 'logb;
+
+## ?????
+## get obj if it evaluates to true or get a default: in c++ : "myobj ? myobj : default"
+## but I have to write 'obj' twice which is cumbersome and runtime inefficient if its a complex expression.
+## Id rather write something like "myobj or default" but with 'correct' return type, not with bool.
+##
+## Same for longer lits "a or b or c or default".
+##
+## Maybe "firsttrue [myobj, default]" or "[myobj, default].firsttrue"
+----------------------------------------------------------------------
+
+- See also D: Auto deduction of all comparision operators after == and any of (< <= > >=) are given.
+
+
+== Redirection
+Make it easy to interact with other programs using pipes and redirection, like shell scripts do it.
+
+== Ranges
+
+== Slices
+
+== Closures
+
+foo.times() i++;
+foo.times() {i++};
+foo.times() {|x| i++};
+foo.times() do i++;
+foo.times() do|x| i++;
+foo.times() do { i++ };
+
+collexpr.foreach do expr;
+collexpr.find exp#predicate;
+collexpr.find(exp#valtofind);
+collexpr.sort expr#comparator;
+
+thus a funccall actually is
+----------------------------------------------------------------------
+funccall =
+  identifier#obj (\.|"->") identifier#generic_member ( #nullary| \((expr#arg\,{?})*\) #*n-ary,n>=0*#) [ expr]
+----------------------------------------------------------------------
+
+template<T> times() yields() -> T | e.g. 5.times { print "hello" } 
+
+
+== Expressions vs Statements
+- nearly everything is an expression; no? difference between expressions ans statements
+- no distinction neccessairy between , and ; ?
+- would mean there are only operators (and words acting as operators), no `traditional' keywords.
+
+- Where does lifetime of automatic storage end when there are no longer any
+  blocks? Where does lifetime of temporaries end when there no statements
+  anymore? Where are sequence points?
+ ** Use parenthesis just as in C++ to overwrite precedence. Use curly [b]{}
+    for the same thing but additionally with the old block sematics.
+ ** ; opposed to , could be use as the point where temporaries are deleted.
+    But that is a small advantage for a token. Thus let temporaries die also
+    at the end of the enclosing block, just as automatic variables.
+
+== Everything is an object
+Also builtintypes, but without sacrificing being as close to HW as C.
+normal objects, functions, modules, ...
+
+
+== Conditional compiling
+
+constexpr are evaluated at compile time. Using that with const conditional expression and put declaration statements into the clauses controlled by the conditional expresssion we get conditional declarations.
+
+
+== Extendable language / what is part of language what of compiler?
+- Literals such as strings, arithmetic, collection are just very basic from a
+  language point of view. However the language allows to create aliases, and
+  the ef standard then supplies a number of them. List literals l[...], map
+  literals m[...] etc only make use of some meta language which lets the user
+  define such literal constructs.
+
+== Preprocessor
+- Use M4?
+- Or as D drop it, also so IDE's have it easier to understand the semantics of the code.
+
+== Const expr / meta compilig & running
+
+- Allow using const and temporary objects. That makes it possible that we can
+  call methods on literals, being really of a given class type (evertthing is
+  an object in ef), and the calls are evaluated at compile time.
+- The `normal' comiler recives builtin literals from the execution of the code the meta compiler produced.
+
+== Exceptions
+- As I think stroustroup said: The whole error handling theme _is_ complex, don't blame the exceptions.
+- Caller can decide that all/certain exceptions result in an die rightaway.
+  E.g. because caller thinks he fullfill's all preconditions or because he
+  (and no one else in the call hierarchy) doesnt write a catch handler.
+  However then each exceptions needs to be translatable into a integer and or
+  a string which can then be automatically printed. That printer is user
+  definable, e.g. through overload or registering a callback aka hook.
+- As in Java, have an obligatory throws clause
+- We can define name's for sets of exceptions, usable for throws part of func signature
+
+== Collections also for definitions or assignements or ...
+----------------------------------------------------------------------
+[var i as auto, var j as auto] = gettwo();
+[i,j] = gettwo();
+!!!! must work for any type of collection gettwo returns !!!!
+the explicit version would probably be
+std::tuple<const int&,const double&>(i,j) = gettwo();
+----------------------------------------------------------------------
+
+== Iterators
+- Know their container, most of all know the bounds of the container
+
+== Algorithms
+- Primarly work with collections, not with iterator pairs
+
+== RTTI
+- Classes provide a list of their members as std::tuple. That way e.g. one
+  could implement an relyable (though inefficient) operator= or operator==.
+  (Naturaly EF already provides those operators)
+
+== Misc
+- make it hard but possible to not initiale a variable / member
+
+- ; or , build expression lits (aka/similar compound statement). The value of
+  the whole thing is the value of the last element. It follows that the value
+  of a function body is the value of the last element, i.e. a return statement
+  is no longer needed. Allowing to ommit the return statement especially makes
+  small lambdas more concise/readable.
+
+- as in python/perl tuples/list everywhere: (a,b,c) = foo_returning_3
+- let me initially a local var by passing it as output param to a function call
+  func void( int&, int&);
+  func bar() -> void { foo( int var flori noinit, int var edi noinit ); cout << flori << edi; }
+- 
+
