@@ -7,7 +7,24 @@ April 2014
 
 This document is not much more than brainstorming.
 
-== Guidelines in desiging EF
+== Goal / Mission / Vision
+A modern programming language usable in an embedded environment in the industry. Concurrent to C++, not to D (which is apparently not really usable for embedded systems) or event higher level languages.
+
+- Nearly pure OO language
+- Generic programing
+- Functional programing
+- Only expressions, no statements. Thus (local) declarations, controll flow and `traditional' (as in C/C++) expressions can be freely combined.
+- Everything is an object
+- Static type checking
+- Comile time execution
+- RTTI
+- Exceptions
+- Probably no garbage collection
+- Supply safe-easyto-use primitives such as pointers, arrays, strings, collections in general etc, which are nearly are as efficient as their C counterparts. That includes having literals of those
+- Low level code as in C still possible if the above is not efficient after all for certain program parts
+- Compiler not too dificult to write, so also tools like static code analysis, semantic aware IDEs etc are likely. Only if development tools are available for EF it will also be used.
+
+== Guidelines in desining EF
 * Consistent, one keyword one responsibility
  ** Avoid the case that one keyword has multiple meanings, especially regarding storage, lifetime, scope, linkage.
  ** Context insensitive, always the same meaning in any context
@@ -31,58 +48,123 @@ This document is not much more than brainstorming.
   than compiled. Even while develeoping - why compiling a translation unit if
   you don't let the code in it run? (Ok due to a changed import it might has
   to get recompiled).
+* Make it easy to write correct code where language/stdlib help a lot to not
+  make errors while still allowing to have full controll as in a C program,
+  however at the cost of slightly less short & nice syntax. But don't go as
+  far as making low level code too bulky, because then nobody will want to
+  write a whole file in that manner.
+* KISS. Only few people are interested in delving into language details. Most
+  just want to use the language. That is espcially true in the industry, and I
+  want EF to be applicable for embedded systems.
+* inspiring:
+  ** Targeted toward embedded system. C / C++
+  ** OO: C++ / D
+  ** functional programmin: Lisp, smalltask, Scheme, ???
+  ** Generic programming: C++ / D / ???
 
 == Types
 
 ----------------------------------------------------------------------
-typeexpr = [cvqualifier] (fundamentaltype | compoundtype);
+## the end result is that a type expression can be read from left to right and
+## the spoken words correspond exactly to what it technically is.
+type_exp =
+  [cvqualifier] (fundamental_type | compound_type) |
+  \( type_exp \) | ## to change precedence of type-expr-operators
 
-fundamentaltype =
+## As in C++
+cvqualifier = 
+  'const |:  ## ignored for &, &&, raw arrays
+  'volatile; ## ignored for &, &&, raw arrays
+
+fundamental_type =
   ## arithemitic types
     ## integral types
     ['u|'s].(
       'efbyte#*not neccessairly 8bit*#|'short|'int|'long|'longlong|
-      'int.('8|'16|'32|'64|'128|'258)|
-      'bigint) |
+      '['fast|'least].int.('8|'16|'32|'64|'128|'258)| ## probably needs to be moved into stdlib
+      'bigint) | ## probably needs to be moved into stdlib
     ## floating point types
     'float | 'double | 'longdouble |
     ## character types. value is code point
-    'char | 'wchar | 'char_utf8 | 'char_utf16 | 'char_utf32 
+    ## 
+    'char | 
+    'wchar | 'u8char | 'u16char | 'u32char ## maybe move to lib. would have to be variable with anyway, no? How does C++ do it?
   'bool |
-  'tnull | ## type of null pointer literal 
+  'tnull | ## type of null pointer literal. Copied from C++, why do I really need that???? 
   'void |
-  'noret |
-  'auto|## !!!! probably technically not really a type.
-  'typeof\( expr \);## instead C++'s declspec 
+  'noret;
 
-compoundtype =
-  (\&|'refto) typeexpr | ## reference type, lvalue ref
-  (`&&|'moverefto) typeexpr | ## " , rvalue ref
-  ['[sub]](\*|'ptrto)#onesequence typeexpr | ## pointer type. u=std::unique_ptr (default), s=std::shared_ptr, b=builtin, 
-  (\*|'ptrto) typeexpr 'in classtypeexpr | ## pointer (builtin) to member type
-  ['[ab]]\(\[#onesequence constexpr#n\]|'arrayof constexpr#n) typeexpr | ## array type. a=std::array (default), b=builtin
-  ## !!!!todo/ensure!!!! all the following after the same pattern as above
-  enumdec | ## enum
-  funcdec | ## function
-  classdec | ## class
-  uniondec | ## union
-  \( typeexpr \) | ## to change precedence of operators in type expr  
+## !!!!todo/ensure!!!! all the following after the same pattern as above
+compound_type =
+  generic_reference_type |
+  generic_pointer_type |
+  array_type |
+  enum_type | 
+  func_type | 
+  class_type | 
+  union_type;
+
+## - drop the name reference and use alias?
+## - As in C++, probably references are not objects (thus don't have an
+##   address), but sometimes still need memory to store where they refer to.
+generic_reference_type = 
+  ## As lvalue ref in C++. Alternative names: refto
+  (\&|'ref) type_expr | ## when type_expr is itself a ref, this outer ref is ignored. Warn if type_expr is directly explicitely an ref 
+  ## As rvalue ref in C++. Alternative names: moverefto
+  ("&&"|'mref) type_expr;
+
+generic_pointer_type = 
+  ## As rvalue ref in C++. Alternative names: moverefto
+  ("&&"|'mref) type_expr;
+
+generic_pointer_type =
+  ## 'normal' (name??? to distuinguis from member pointer) pointer
+  ['[sub]]#ptrsubtype (\*|'ptrto) type_expr | 
+  ## m
+  ['[sub]]#ptrsubtype (\*|'ptrto) type_expr 'in class_type; ## pointer (builtin) to member type
+
+array_type = 
+  ['[ab]]#arraysubtype \(\[ctconst_expr#n\]|'arrayof ctconst_expr#n) type_expr; ## array type. a=std::array (default), b=builtin
 
 ## decl or def?????. Thanks to that following code can make ptrs/refs to that type.
 typed =
   'type identifier; ## incomplete type. !!! exclusive what ptr to member would point to
 
-
-
-cvqualifier = 'const |: 'volatile;
 ----------------------------------------------------------------------
 
 Notes:
 
 * For simplicity a typename is always a single identifier, e.g. no ``unsigned long long''.
 
-== Convertions
+=== Type aliases
+EF provides two variants: 1) as in C++ only introduce an identifier which is an acronym for an type_expr, but is not a distinct type 2) the new identifier is an distinct typea
+
+
+=== Type information
+When everything is an object, than a type object would have these methods
+
+* +id+
+* +name+
+ ** For template arguments choose wether template name is meant (e.g. T) or the passed type (e.g. myclass)
+ ** Same analogous question for typedefs: 
+* +sizeof+ is often ctconst, but sometimes (e.g. dynarrays as in C) also only known at runtime
+
+
+=== RTTI
+- Classes provide a list of their members as std::tuple. That way e.g. one
+  could implement an relyable (though inefficient) operator= or operator==.
+  (Naturaly EF already provides those operators)
+
+
+=== Convertions aka Casts
 Much less implicit convertions than C++. 
+
+
+=== Enums
+* User chooses whether enclosing namespace gets the names and/or if they are contained in the enumeration namespace
+* Each enum is, as everything, an object whichs name as a string can be retreived.
+
+
 
 == Functions
 ----------------------------------------------------------------------
@@ -106,6 +188,29 @@ paramdeclexpr = typeexpr 'var identifier
 - Allow that definition only uses name already introduced by declaration, so we don't have to redundantely state signature again. That fails for overloads, but see func name aliases.
 - Allow to add aliases to functions. Both to other name, ignoring signature, and to the complete thing (name+signature).
 
+
+== Closures
+
+----------------------------------------------------------------------
+foo.times() i++;
+foo.times() {i++};
+foo.times() {|x| i++};
+foo.times() do i++;
+foo.times() do|x| i++;
+foo.times() do { i++ };
+
+collexpr.foreach do expr;
+collexpr.find exp#predicate;
+collexpr.find(exp#valtofind);
+collexpr.sort expr#comparator;
+
+thus a funccall actually is:
+funccall =
+  identifier#obj (\.|"->") identifier#generic_member ( #nullary| \((expr#arg\,{?})*\) #*n-ary,n>=0*#) [ expr]
+
+template<T> times() yields() -> T | e.g. 5.times { print "hello" } 
+----------------------------------------------------------------------
+
 == Comments / Documentation / EFDoc
 - Institutionaliese using Doxygen or doxygen like markup language.
 - See EDoc why it makes sense to integrate the doc language into the compiler.
@@ -115,17 +220,10 @@ paramdeclexpr = typeexpr 'var identifier
   good doc output 2) even in code the maintainer sees quickly that the
   identifier is not documented here but at another place.
 
-== Ability to talk to C API
-
 == Modules or header-source
 - Do it as in D, have modules
 
-== Name aliases
-- For methods, see there
-- For classes: typically a source file would define alias 'me' to respective
-  class, so method definitions could be as short as "func me::foo {...}"
-
-== Object
+== Create Object on Heap
 ----------------------------------------------------------------------
 ## ternary op. Binds 1) <name> to newly created data of 2) given type
 ## <typeexpr> with automatic storage duration and initializes it with 3)
@@ -260,28 +358,6 @@ Make it easy to interact with other programs using pipes and redirection, like s
 
 == Slices
 
-== Closures
-
-foo.times() i++;
-foo.times() {i++};
-foo.times() {|x| i++};
-foo.times() do i++;
-foo.times() do|x| i++;
-foo.times() do { i++ };
-
-collexpr.foreach do expr;
-collexpr.find exp#predicate;
-collexpr.find(exp#valtofind);
-collexpr.sort expr#comparator;
-
-thus a funccall actually is
-----------------------------------------------------------------------
-funccall =
-  identifier#obj (\.|"->") identifier#generic_member ( #nullary| \((expr#arg\,{?})*\) #*n-ary,n>=0*#) [ expr]
-----------------------------------------------------------------------
-
-template<T> times() yields() -> T | e.g. 5.times { print "hello" } 
-
 
 == Expressions vs Statements
 - nearly everything is an expression; no? difference between expressions ans statements
@@ -302,9 +378,34 @@ Also builtintypes, but without sacrificing being as close to HW as C.
 normal objects, functions, modules, ...
 
 
-== Conditional compiling
+== Compile time execution
+Extend Cpp11 (I don't know what Cpp14 offers) concept of constexpr, but
+probably name it ++ctconst++. The code the compiler generates can also be
+executed right away. Why restrict that in any way? Maybe it gets too dificult
+to write good tools (analysis, semantic aware tools for IDEs, etc).
 
-constexpr are evaluated at compile time. Using that with const conditional expression and put declaration statements into the clauses controlled by the conditional expresssion we get conditional declarations.
+Difficult for crosscompilers? The code really being generated cannot be
+executed. The code executed while compiling is either in the host machine code
+or in some byte code the compiler can execute.
+
+Allow using const and temporary objects. That makes it possible that we can
+call methods on literals, being really of a given class type (evertthing is an
+object in ef), and the calls are evaluated at compile time.
+
+The `normal' comiler recives builtin literals from the execution of the code
+the meta compiler produced.
+
+
+== Conditional compiling
+constexpr are evaluated at compile time. Using that with const conditional
+expression and put declaration statements into the clauses controlled by the
+conditional expresssion we get conditional declarations.
+
+== Preprocessor
+- Even if EF has expressions evaluated at compile time which conditionaly define/declare stuff, than macros still can assemble arbitray text, .e.g only part of expressions
+- Use M4?
+- Or as D drop it, also so IDE's have it easier to understand the semantics of the code.
+- As separator for parameters of a macro call, interpreted by preprocessor, use something which is not part of the EF language. E.g. if EF knows comma (,) but not semicolon (;), then e.g. the preprocessor uses semicolon to separate arguments. In C++ its not easily possibly and sometimes not at all to pass an argument containing a comma.
 
 
 == Extendable language / what is part of language what of compiler?
@@ -314,16 +415,7 @@ constexpr are evaluated at compile time. Using that with const conditional expre
   literals m[...] etc only make use of some meta language which lets the user
   define such literal constructs.
 
-== Preprocessor
-- Use M4?
-- Or as D drop it, also so IDE's have it easier to understand the semantics of the code.
 
-== Const expr / meta compilig & running
-
-- Allow using const and temporary objects. That makes it possible that we can
-  call methods on literals, being really of a given class type (evertthing is
-  an object in ef), and the calls are evaluated at compile time.
-- The `normal' comiler recives builtin literals from the execution of the code the meta compiler produced.
 
 == Exceptions
 - As I think stroustroup said: The whole error handling theme _is_ complex, don't blame the exceptions.
@@ -336,26 +428,18 @@ constexpr are evaluated at compile time. Using that with const conditional expre
 - As in Java, have an obligatory throws clause
 - We can define name's for sets of exceptions, usable for throws part of func signature
 
-== Collections also for definitions or assignements or ...
-----------------------------------------------------------------------
-[var i as auto, var j as auto] = gettwo();
-[i,j] = gettwo();
-!!!! must work for any type of collection gettwo returns !!!!
-the explicit version would probably be
-std::tuple<const int&,const double&>(i,j) = gettwo();
-----------------------------------------------------------------------
-
-== Iterators
+== Library
+=== Iterators
 - Know their container, most of all know the bounds of the container
 
-== Algorithms
+=== Algorithms
 - Primarly work with collections, not with iterator pairs
 
-== RTTI
-- Classes provide a list of their members as std::tuple. That way e.g. one
-  could implement an relyable (though inefficient) operator= or operator==.
-  (Naturaly EF already provides those operators)
+== ABI
 
+== Ability to talk to C API
+
+== Debugger
 == Misc
 - make it hard but possible to not initiale a variable / member
 
@@ -369,5 +453,12 @@ std::tuple<const int&,const double&>(i,j) = gettwo();
 - let me initially a local var by passing it as output param to a function call
   func void( int&, int&);
   func bar() -> void { foo( int var flori noinit, int var edi noinit ); cout << flori << edi; }
-- 
 
+As in Python, make it possible that a list of variables are initialized by a list
+----------------------------------------------------------------------
+[var i as auto, var j as auto] = gettwo();
+[i,j] = gettwo();
+!!!! must work for any type of collection gettwo returns !!!!
+the explicit version would probably be
+std::tuple<const int&,const double&>(i,j) = gettwo();
+----------------------------------------------------------------------
