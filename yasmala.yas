@@ -118,7 +118,7 @@ TagList = (\@Identifier{f?})+;
 myfunc <> = sdfa;
 
        
-## bash
+## Demo of Yasmala taking bash as use case
 ## --------------------------------------------------------------------------------
        
 Script = List;       
