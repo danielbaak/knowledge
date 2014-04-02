@@ -8,27 +8,25 @@ April 2014
 This document is not much more than brainstorming.
 
 == Goal / Mission / Vision
-A modern programming language usable in an embedded environment in the industry. Concurrent to C++, not to D (which is apparently not really usable for embedded systems) or event higher level languages.
+A modern programming language usable in an embedded, real-time environment in the industry. Concurrent to C++, not to D (which is apparently not really usable for embedded systems) or event higher level languages.
 
-- Nearly pure OO language
-- Generic programing
+- Nearly pure OO language, nearly everything is an object, nearly every type is a class
 - Functional programing
-- Only expressions, no statements. Thus (local) declarations, controll flow and `traditional' (as in C/C++) expressions can be freely combined.
-- Everything is an object
-- Static type checking
+- Generic programing
+- Nearly only freely mixable expressions, nearly no statements. Thus (local) declarations, controll flow and `traditional' (as in C/C++) expressions can be freely combined.
+- Static type checking, i.e. no ducktyping, but optionally RTTI
 - Comile time execution
-- RTTI
 - Exceptions
-- Probably no garbage collection
+- Contracts (as in D)
+- Proper/easier interfaces, no multiple inheritance
+- Manual memory management, but by default smart pointers are used, no garbage collector.
 - Supply safe-easyto-use primitives such as pointers, arrays, strings, collections in general etc, which are nearly are as efficient as their C counterparts. That includes having literals of those
 - Low level code as in C still possible if the above is not efficient after all for certain program parts
-- Compiler not too dificult to write, so also tools like static code analysis, semantic aware IDEs etc are likely. Only if development tools are available for EF it will also be used.
+- Easy enough grammer, so compilers and additional tools like static code
+  analysis, semantic aware IDEs etc are easy enough to write. Only if good
+  development tools are available for EF it will also be used in the industry.
 
 == Guidelines in desining EF
-* Consistent, one keyword one responsibility
- ** Avoid the case that one keyword has multiple meanings, especially regarding storage, lifetime, scope, linkage.
- ** Context insensitive, always the same meaning in any context
- ** Choose linkage, lifetime, storage, scope, alignment etc with dedicated keywords.
 * Prefer memontic (even when only one letter) letters/words over punctuation.
 * Easy grammar. Most of all easy for humans to understand details
   ('complicated' grammars might often be intuitive for humans in most cases
@@ -39,6 +37,7 @@ A modern programming language usable in an embedded environment in the industry.
 * As in C++, don't pay what you don't need, maybe at the cost of safety. That
   is the default patterns are safe, but there are still almost as direct
   ways/patterns to have full controll as in C.
+  ** RTTI costs, mainly footprint size, which might be a problem in an embedded system. As in C++, allow to turn it off - but then we also loose exceptions? See http://stackoverflow.com/questions/5257190/are-exceptions-still-undesirable-in-realtime-environment.
 * Trade safety (likeliness to write correct programs) for compile time. The
   machine has to think, not the human programmer. Compile time (almost) only
   helps the programmer, but the programmer benefits probably more if he spends
@@ -56,11 +55,21 @@ A modern programming language usable in an embedded environment in the industry.
 * KISS. Only few people are interested in delving into language details. Most
   just want to use the language. That is espcially true in the industry, and I
   want EF to be applicable for embedded systems.
+* For to be successfull on embedded, the produced binary must not contain much overhead (size)
+* One thing has only one responsibilty
+ ** Applies also to keywords / operators in EF
+  *** Avoid the case that one keyword has multiple meanings, especially regarding storage, lifetime, scope, linkage.
+  *** Context insensitive, always the same meaning in any context
+  *** Choose linkage, lifetime, storage, scope, alignment etc with dedicated keywords.
+ ** EF shall help that the constructs the programer creates adhere to this principle
+ ** Const local objects -- appart from loop variables, collecting/summing up
+    variables, it's hard that one object with given name really can reasonably
+    contain different values at different times.
 * inspiring:
-  ** Targeted toward embedded system. C / C++
-  ** OO: C++ / D
-  ** functional programmin: Lisp, smalltask, Scheme, ???
-  ** Generic programming: C++ / D / ???
+  ** Targeted toward embedded system. C / C++ / lua / Tcl
+  ** OO: C++ / D / Java / C# / Ruby / Python / Eiffel
+  ** Functional programmin: Lisp, Smalltalk, Scheme, Ruby, Python
+  ** Generic programming: C++ / D
 
 == Types
 
@@ -69,7 +78,7 @@ A modern programming language usable in an embedded environment in the industry.
 ## the spoken words correspond exactly to what it technically is.
 type_exp =
   [cvqualifier] (fundamental_type | compound_type) |
-  \( type_exp \) | ## to change precedence of type-expr-operators
+  \( type_exp \); ## to change precedence of type-expr-operators
 
 ## As in C++
 cvqualifier = 
@@ -107,14 +116,18 @@ compound_type =
 ## - drop the name reference and use alias?
 ## - As in C++, probably references are not objects (thus don't have an
 ##   address), but sometimes still need memory to store where they refer to.
+## - is the property of a const ref still needed that it extends lifetime of a
+##   temporary? I think this is now unneeded complexity
+## - isn't it that rvalue ref is just some kind of smart pointer? The old
+##   owner says: I dont need my content anymore, and the rvalue ref says: I
+##   take ownership of your content and do with it whatever I want. With
+##   classes supporting move semantics the actual data is not really on the
+##   stack, its on the heap anyway. Thus a func can new the data directly
+##   using some smart ptr.
+##   * Mind the swap example
+##   * Read http://www.drdobbs.com/cpp/c11-uniqueptr/240002708
 generic_reference_type = 
-  ## As lvalue ref in C++. Alternative names: refto
   (\&|'ref) type_expr | ## when type_expr is itself a ref, this outer ref is ignored. Warn if type_expr is directly explicitely an ref 
-  ## As rvalue ref in C++. Alternative names: moverefto
-  ("&&"|'mref) type_expr;
-
-generic_pointer_type = 
-  ## As rvalue ref in C++. Alternative names: moverefto
   ("&&"|'mref) type_expr;
 
 generic_pointer_type =
@@ -165,8 +178,20 @@ Much less implicit convertions than C++.
 * Each enum is, as everything, an object whichs name as a string can be retreived.
 
 
+=== Strings & Characters
+* Try to clean up the character encoding mess. Make clear what happens, what you get
+* Internationalization
 
-== Functions
+== Code chunks
+
+=== (Named) Methods
+For now same as functions, just defined within a class. Maybe use keyword
++meth+ instead of +func+. That also makes documentation more easy. I.e. terms
+used in documentation correspond more to terms used in code / in the syntax of
+the language.
+
+=== (Named) Functions
+A named lambda. That should be visible in some way from the syntax. 
 ----------------------------------------------------------------------
 ## 4 (or 5?) ary
 funcdec =
@@ -188,8 +213,10 @@ paramdeclexpr = typeexpr 'var identifier
 - Allow that definition only uses name already introduced by declaration, so we don't have to redundantely state signature again. That fails for overloads, but see func name aliases.
 - Allow to add aliases to functions. Both to other name, ignoring signature, and to the complete thing (name+signature).
 
+=== Lambdas
+An anonymous aka unnamed  function. An unnamed closure which makes no references to environment. 
 
-== Closures
+Can they be templetizized? 
 
 ----------------------------------------------------------------------
 foo.times() i++;
@@ -211,6 +238,32 @@ funccall =
 template<T> times() yields() -> T | e.g. 5.times { print "hello" } 
 ----------------------------------------------------------------------
 
+=== MethLambdas
+An unnamed method. 
+
+=== Closures
+A closure is any (named or anonymous does not matter) function which closes over the environment in which it was defined. This means that it can access variables not in its parameter list. See also http://stackoverflow.com/questions/220658/what-is-the-difference-between-a-closure-and-a-lambda
+
+Can they be templetizized? 
+
+=== Contracts
+See D. For all types of code chunks.
+
+Pure virtual methods should also be able to have contracts, no? That includes interfaces.
+
+Interfaces should also be able to have invariants, no?
+
+
+=== Optimizations
+
+==== Pure
+See D for pure functions. In EF, pure can be a property of any code chunk.
+
+==== Tail call optimization
+
+==== Return value optimization (RVO)
+Probably part of the more general copy ellision.
+
 == Comments / Documentation / EFDoc
 - Institutionaliese using Doxygen or doxygen like markup language.
 - See EDoc why it makes sense to integrate the doc language into the compiler.
@@ -220,10 +273,14 @@ template<T> times() yields() -> T | e.g. 5.times { print "hello" }
   good doc output 2) even in code the maintainer sees quickly that the
   identifier is not documented here but at another place.
 
-== Modules or header-source
-- Do it as in D, have modules
+== Modules
+- Do it as in D, have modules, as opposed to header(.h) and source(.cpp/.cc/...) files.
 
-== Create Object on Heap
+== Local objects
+
+Aka automatic aka on heap. By default they are const (so are function
+parameters). 
+
 ----------------------------------------------------------------------
 ## ternary op. Binds 1) <name> to newly created data of 2) given type
 ## <typeexpr> with automatic storage duration and initializes it with 3)
@@ -235,6 +292,9 @@ template<T> times() yields() -> T | e.g. 5.times { print "hello" }
 ## and compilers) see is an identifier we don't know yet. result is the value
 ## of the new variable how do i know what is part of type expr and what is
 ## part of name.
+##
+## The name 'var' makes not much sense if the default is to be const.
+## 'obj' would be an alternative?
 local_var_def =
   %v1
   'var [identifier|'noname] [('as|'is|\:) typeexpr]#defaults_to_auto initializer;
@@ -252,7 +312,7 @@ initializer =
 ## if            n-ary
 ----------------------------------------------------------------------
 
-== Class
+== Classes
 ----------------------------------------------------------------------
 classdecl =
   'class identifier#classtypename | ##incomplete class type
@@ -268,6 +328,9 @@ The name is ~this or dtor or destructor. See also ctor
 
 === Initval
 What is D's init? Why not just use default ctor
+
+=== Friend
+Unlike D, keep +friend+. I don't like D's solution that within a module there is no private anymore. In my eyes private also protects myself / the maintainers from making mistakes in one single module. E.g. sometimes redundancy sadly is needed, and then I want to encapsulate that redundancy in an very small area, i.e. a very small helper class.
 
 === Methods
 - Virtual is default
@@ -285,6 +348,17 @@ What is D's init? Why not just use default ctor
 - In the declaration of a member, one can state whether and what
   getters/setters are (auto) generated [mind the different access]. The
   implementation is automatic or user given.
+
+
+=== Operator overloading
+Support the case that the class can also be the rhs of the the other type is the lhs. That avoids the need for being forced to define a global operator for that case which also forces that global operatot to be private.
+
+=== Invariants
+See D
+
+=== Deletion of ctor, dtor, assignement
+Instead making those private, which has the disadvantage that for methods of the same class the compiler doesn say anything, only the linker, delete them. I think C++11 also has this feature. For convenience, also give an short whatever to delete a group for often occuring usecases
+- copy ctor and assignment operator for classes not intended to be copyied in any way
 
 
 == Controll flow
@@ -357,7 +431,7 @@ Make it easy to interact with other programs using pipes and redirection, like s
 == Ranges
 
 == Slices
-
+As in Python/Ruby, easily transform a collection to another collection, or interpret a collection as another collection.
 
 == Expressions vs Statements
 - nearly everything is an expression; no? difference between expressions ans statements
@@ -378,7 +452,14 @@ Also builtintypes, but without sacrificing being as close to HW as C.
 normal objects, functions, modules, ...
 
 
-== Compile time execution
+=== Common base class
+Does it help when there is a common base class as in Java?
+
+== Memory management
+Read http://en.wikipedia.org/wiki/Manual_memory_management and follow the links at the bottom.
+
+== Compilation
+=== Compile time execution
 Extend Cpp11 (I don't know what Cpp14 offers) concept of constexpr, but
 probably name it ++ctconst++. The code the compiler generates can also be
 executed right away. Why restrict that in any way? Maybe it gets too dificult
@@ -395,13 +476,13 @@ object in ef), and the calls are evaluated at compile time.
 The `normal' comiler recives builtin literals from the execution of the code
 the meta compiler produced.
 
-
-== Conditional compiling
+=== Conditional compiling
 constexpr are evaluated at compile time. Using that with const conditional
 expression and put declaration statements into the clauses controlled by the
 conditional expresssion we get conditional declarations.
 
-== Preprocessor
+=== Preprocessor
+- If there is no preprocessor, how to I get __FILE__, __LINE__, __FUNC__? For func maybe something like ++thisfunc.name()++
 - Even if EF has expressions evaluated at compile time which conditionaly define/declare stuff, than macros still can assemble arbitray text, .e.g only part of expressions
 - Use M4?
 - Or as D drop it, also so IDE's have it easier to understand the semantics of the code.
@@ -418,6 +499,19 @@ conditional expresssion we get conditional declarations.
 
 
 == Exceptions
+Are they compatible with the idea that EF should be applicable in a realtime environment ?
+- http://stackoverflow.com/questions/5257190/are-exceptions-still-undesirable-in-realtime-environment
+- http://741mhz.com/exceptions-performance/
+- Also when I use return codes it's no difference in difficulty to measure/guess/prove how long a call takes in the worst case.
+
+Allow to disable them for users where footprint size is most important. But what will happen then to the signature of library functions? Do we always need two versions, one using return codes and one using exceptions (and using the return value for something which allows the caller to build nice expressions)?. If so, probably the exception version should be the one having to pay  the penalty of having two versions, if there is a penalty at all. Because the return code version is the one for the embedded system with hard constrains, thus a penalty is not affortable. 
+
+When to use exceptions?
+Some say Use exceptions correctly: to report an unexpectad use case. When the function could not do what it was asked to do. Dont use it in normal use cases. An exception should actually never occur at all. But that does mean that the N caller of `divide' is supposed to check for themselves that divisor is not 0 (ok, if they can and want to react, they have to write the code anyway, the question is only before the call to prevent the call or after the call in the catch clause). Likewise for opening a file -- here I think it would even be the wrong solution to do it like `if !fileexists open' because naturally between the fileexists and the open the file can vanish.
+
+Others say, I think ruby or python, that you should always first just try and if it fails, try to react in the catch handler.
+
+
 - As I think stroustroup said: The whole error handling theme _is_ complex, don't blame the exceptions.
 - Caller can decide that all/certain exceptions result in an die rightaway.
   E.g. because caller thinks he fullfill's all preconditions or because he
@@ -439,9 +533,21 @@ conditional expresssion we get conditional declarations.
 
 == Ability to talk to C API
 
-== Debugger
+== Tools around
+* When D has guidelines/rules how to name unnamed/temporary objects / code chunks, then tools can profit. The semantic inteligence of an IDE can show them. Also probably needed in call tree visualizations where unnamed code chunks are part of. In the debugger I want to visualize return values of functions or even every expression. 
+=== Debugger
+Be able to display at least return value of functions call. Maybe even the unnamed temporary result of each expression. 
+=== Static code analysis
+See what Clang Static Analyzer does
+=== Valgrind / LLVM & Co
+=== Profiler
+The guideline is to always use the `automatic'/`smart' classes, never the raw/builtin types like raw arrays, raw ptrs etc. Only when a profiler shows that a certain part of the code has efficiency issues those should be considered.
+
+=== IDEs can have semantic understanding
+Plugins for Eclipse, MS Studio, QTCreator, Emacs, Vim
+
 == Misc
-- make it hard but possible to not initiale a variable / member
+- make it hard but possible to _not_ initiale a variable / member
 
 - ; or , build expression lits (aka/similar compound statement). The value of
   the whole thing is the value of the last element. It follows that the value
