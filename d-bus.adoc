@@ -18,14 +18,18 @@ Every _connection_ to a given bus is uniquely identified by one or more _bus nam
 
 When a connection is set up, the bus immediately assigns it an immutable bus name that it will retain for as long as the bus exists. This bus name is called a _unique connection name_, because no other connection will ever have that same name on that bus. It starts with a colon, e.g.: ":34-907". The other parts of the name have no particular meaning.
 
-A connection may have additional bus names, chosen by the owning process. These are typically well-known names, that are agreed upon by convention, so other processes can use them to connect to that connection. These well-known bus names consist of a series of identifiers separated by dots, the identifiers themselves may contain letters, digits, dashes, and underscores, e.g. "org.freedesktop.NetworkManager". Some people (e.g. Qt) _wrongly_ use _service name_ as a synonym for such bus names, see also https://dbus.freedesktop.org/doc/dbus-faq.html#service.
+A connection may have additional bus names, chosen by the owning process. These are typically well-known names, that are agreed upon by convention, so other processes can use them to connect to that connection. These well-known bus names consist of a series of identifiers separated by dots. The identifiers themselves may contain letters, digits, dashes, and underscores, e.g. "org.freedesktop.NetworkManager". Some people (e.g. Qt) _wrongly_ use _service name_ as a synonym for such bus names, see also https://dbus.freedesktop.org/doc/dbus-faq.html#service.
 
 
 == Objects & Messages
 
 One end of any exchange on a bus will always be a communications endpoint that in D-Bus parlance is called an _object_. An object is created by a client process. One client may create any number of objects. Every bus has at least one object, representing the bus itself. Clients can obtain information about the status of the bus by sending requests to this object.
 
-Any _message_ carried by the bus is of one of three _message types_: 1) Request send to an object 2) the reply of that request 3) Broadcast message from one object to any objects that have registered an interest.
+Any _message_ carried by the bus is of one of three _message types_: 
+  
+  1. Request send to an object
+  2. the reply of that request
+  3. Broadcast message from one object to any objects that have registered an interest.
 
 An object has an _object name_ (aka _object path_), which has the form of a Unix-style, slash-separated file system path. An object name needs to be unique only within the context of its connection to the bus.
 
@@ -34,7 +38,7 @@ Objects on the bus can be accessed from a client process through references that
 
 == Interfaces & Methods & Signals
 
-An object provides zero or more _methods_ and can emit zero or more particular _signals_. These are known collectively as the object's _members_. All of an object's members are specified in  _interfaces_. Each member has an _member name_. An object may implement any number of interfaces. An interface defines a set of methods and signals. Whether there is "overloading" of members within interfaces, i.e. whether multiple members of the same interface may have the same name, depends on the language binding you use.
+An object provides zero or more _methods_ and can emit zero or more particular _signals_. These are known collectively as the object's _members_. All of an object's members are specified in  _interfaces_. Each member has a _member name_. An object may implement any number of interfaces. An interface defines a set of methods and signals. Whether there is "overloading" of members within interfaces, i.e. whether multiple members of the same interface may have the same name, depends on the language binding you use.
 
 When a client invokes a method or listens for a signal, it must indicate the object path and the member name it is referring to, and it should also indicate the interface name to disambiguate in case an object implements multiple interfaces which may have members with identical names.
 
@@ -47,7 +51,7 @@ A _single complete type_ is either a basic type or a single fully-described cont
 
 A _type code_ is an ASCII character representing the type of a value.
 
-A _basic type_ is entirely defined by a a single character type code. Basic types consist of fixed types and string-like types.
+A _basic type_ is entirely defined by a single character type code. Basic types consist of fixed types and string-like types.
 
 _fixed types_ are basic types whose values have a fixed length.
 
@@ -55,7 +59,7 @@ _string-like_ types are basic types with a variable length: Zero or more Unicode
 
 A _container type_ is one of the following: STRUCT, ARRAY, VARIANT, and DICT_ENTRY.
 
-_STRUCT_: Type type code is "r", but that is not used in signatures. Instead, "(" and ")" are used to delimit beginning and end of a sequence of complete types.
+_STRUCT_: The type code is "r", but that is not used in signatures. Instead, "(" and ")" are used to delimit beginning and end of a sequence of complete types.
 
 _ARRAY_: The type code is "a", which must be followed by a single complete type.
 
